@@ -333,8 +333,10 @@ sequenceDiagram
 | Window Probe | Sender periodically checks if rwnd > 0 |
 
 ## TCP Congestion Control
-state machine
+### purpose
+To manage network congestion and optimize throughput.
 
+###state machine
 ```mermaid
 stateDiagram-v2
     [*] --> SlowStart
