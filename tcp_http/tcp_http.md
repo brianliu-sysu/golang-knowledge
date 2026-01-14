@@ -336,36 +336,50 @@ sequenceDiagram
 ### purpose
 To manage network congestion and optimize throughput.
 
-###state machine
+### state machine
 ```mermaid
 stateDiagram-v2
     [*] --> SlowStart
 
-    SlowStart --> SlowStart : ACK received
+    SlowStart --> SlowStart : ACK (cwnd += MSS)
     SlowStart --> CongestionAvoidance : cwnd >= ssthresh
-    SlowStart --> FastRecovery : 3 Dup ACKs
+    SlowStart --> FastRecovery : 3 DupACKs / Fast Retransmit
 
-    CongestionAvoidance --> CongestionAvoidance : ACK received
-    CongestionAvoidance --> FastRecovery : 3 Dup ACKs
-    CongestionAvoidance --> SlowStart : Timeout
+    CongestionAvoidance --> CongestionAvoidance : ACK (cwnd += MSS*MSS/cwnd)
+    CongestionAvoidance --> FastRecovery : 3 DupACKs / Fast Retransmit
 
-    FastRecovery --> CongestionAvoidance : New ACK
-    FastRecovery --> SlowStart : Timeout
+    FastRecovery --> FastRecovery : DupACK (cwnd += MSS)
+    FastRecovery --> CongestionAvoidance : New ACK (cwnd = ssthresh)
 
-    SlowStart --> SlowStart : Timeout
+    SlowStart --> SlowStart : (internal)
+
+    SlowStart --> SlowStart : (optional)
+    SlowStart --> SlowStart : (optional)
+
+    SlowStart --> SlowStart : (optional)
+
+    %% unify timeout
+    SlowStart --> SlowStart : Timeout (ssthresh=cwnd/2; cwnd=1*MSS)
+    CongestionAvoidance --> SlowStart : Timeout (ssthresh=cwnd/2; cwnd=1*MSS)
+    FastRecovery --> SlowStart : Timeout (ssthresh=cwnd/2; cwnd=1*MSS)
 
     note right of SlowStart
-        cwnd doubles per RTT
-        ssthresh = cwnd/2 on timeout
-        cwnd = 1 on timeout
+        Slow Start:
+        per ACK: cwnd += MSS
+        ~ doubles per RTT
+        on Timeout: ssthresh=cwnd/2, cwnd=1*MSS
     end note
 
     note right of CongestionAvoidance
-        cwnd += 1 per RTT
+        Congestion Avoidance:
+        per RTT: cwnd += MSS
+        (per ACK: += MSS*MSS/cwnd)
     end note
 
     note right of FastRecovery
-        ssthresh = cwnd/2
-        cwnd = ssthresh + 3
+        Fast Recovery (Reno/NewReno):
+        enter: ssthresh=cwnd/2, cwnd=ssthresh+3*MSS
+        per dupACK: cwnd += MSS
+        exit on New ACK: cwnd=ssthresh
     end note
 ```
