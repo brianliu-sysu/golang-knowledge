@@ -1,0 +1,28 @@
+syntax = "proto3";
+package im.v1;
+
+option go_package = "github.com/yourusername/im-server/proto/im/v1;imv1";
+
+message ClientEnvelope {
+  string trace_id = 1;
+  oneof payload {
+    Echo echo = 10;
+  }
+}
+
+message ServerEnvelope {
+  string trace_id = 1;
+  oneof payload {
+    Echo echo = 10;
+    Error error = 99;
+  }
+}
+
+message Echo {
+  bytes message = 1;
+}
+
+message Error {
+  string code = 1;
+  string message = 2;
+}

@@ -1,0 +1,8 @@
+# im-server
+## Requirment
+- Go 1.22+
+- protoc + protoc-gen-go 
+## Generate protobuf
+```
+make proto
+```
