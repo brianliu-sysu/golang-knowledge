@@ -15,6 +15,8 @@ type Config struct {
 	ReadTimeout    time.Duration `yaml:"read_timeout"`     // for websocket
 	PingInterval   time.Duration `yaml:"ping_interval"`    // for websocket
 	PongWait       time.Duration `yaml:"pong_wait"`        // for websocket
+
+	PostgresDSN string `yaml:"postgres_dsn"`
 }
 
 func DefaultConfig() *Config {
@@ -29,5 +31,7 @@ func DefaultConfig() *Config {
 		ReadTimeout:    time.Second * 10,
 		PingInterval:   time.Second * 30,
 		PongWait:       time.Second * 10,
+
+		PostgresDSN: "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable",
 	}
 }

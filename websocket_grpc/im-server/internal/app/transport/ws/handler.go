@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/brianliu-sysu/golang-knowledge/websocket_grpc/im-server/internal/app/transport/ws/contract"
+	"github.com/brianliu-sysu/golang-knowledge/websocket_grpc/im-server/internal/app/transport/ws/dispatch"
 	"github.com/brianliu-sysu/golang-knowledge/websocket_grpc/im-server/internal/app/transport/ws/protocol"
 	imv1 "github.com/brianliu-sysu/golang-knowledge/websocket_grpc/im-server/internal/gen/im/v1"
 	"github.com/brianliu-sysu/golang-knowledge/websocket_grpc/im-server/internal/pkg/observability"
@@ -23,8 +25,9 @@ type HandlerOptions struct {
 	PingInterval   time.Duration
 	PongWait       time.Duration
 	Logger         *zap.Logger
-	Registry       Registry
+	Registry       contract.Registry
 	Authenticator  auth.Authenticator
+	Dispatch       dispatch.Dispatcher
 }
 
 type Handler struct {
@@ -33,6 +36,9 @@ type Handler struct {
 }
 
 func NewHandler(options HandlerOptions) *Handler {
+	if options.Dispatch == nil {
+		options.Dispatch = dispatch.NewDefaultDispatcher(options.Registry)
+	}
 	return &Handler{
 		options: options,
 		upgrader: websocket.Upgrader{
@@ -160,23 +166,10 @@ func (h *Handler) readLoop(ctx context.Context, s *Session) {
 				_ = h.SendError(ctx, s, "", "BAD_PROTO", "Protocol error")
 				continue
 			}
-			// MVP：只支持 Echo
-			switch p := env.Payload.(type) {
-			case *imv1.ClientEnvelope_Echo:
-				resp := &imv1.ServerEnvelope{
-					TraceId: env.TraceId,
-					Payload: &imv1.ServerEnvelope_Echo{
-						Echo: &imv1.Echo{Message: p.Echo.Message},
-					},
-				}
-				out, e := protocol.EncodeServerMessage(resp)
-				if e != nil {
-					_ = h.SendError(ctx, s, env.TraceId, "INTERNAL", "encode failed")
-					continue
-				}
-				_ = s.Send(out)
-			default:
-				_ = h.SendError(ctx, s, env.TraceId, "UNSUPPORTED", "payload not supported in milestone 1")
+			err = h.options.Dispatch.Dispatch(ctx, s, env)
+			if err != nil {
+				_ = h.SendError(ctx, s, env.TraceId, "INTERNAL", "dispatch failed")
+				continue
 			}
 		}
 	}

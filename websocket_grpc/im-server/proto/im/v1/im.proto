@@ -3,10 +3,44 @@ package im.v1;
 
 option go_package = "github.com/yourusername/im-server/proto/im/v1;imv1";
 
+enum MessageType {
+  UNSPECIFIED = 0;
+  ECHO = 1;
+  REGISTER = 2;
+  LOGIN = 3;
+  LOGOUT = 4;
+  APPLY_FOR_FRIEND = 5;
+  ACCEPT_FRIEND = 6;
+  REJECT_FRIEND = 7;
+  CREATE_GROUP = 8;
+  APPLY_FOR_GROUP = 9;
+  ACCEPT_GROUP = 10;
+  REJECT_GROUP = 11;
+  LIST_GROUPS = 13;
+  LIST_GROUP_MEMBER = 14;
+  SINGLE_MESSAGE = 15;
+  GROUP_MESSAGE = 16;
+}
+
 message ClientEnvelope {
   string trace_id = 1;
+  MessageType type = 2;
   oneof payload {
     Echo echo = 10;
+    Register register = 11;
+    Login login = 12;
+    Logout logout = 13;
+    ApplyForFriend apply_for_friend = 14;
+    AcceptFriend accept_friend = 15;
+    RejectFriend reject_friend = 16;
+    CreateGroup create_group = 17;
+    ApplyForGroup apply_for_group = 18;
+    AcceptGroup accept_group = 19;
+    RejectGroup reject_group = 20;
+    ListGroups list_groups = 21;
+    ListGroupMember list_group_memeber = 22;
+    SingleMessage single_message = 23;
+    GroupMessage group_message = 24;
   }
 }
 
@@ -14,12 +48,132 @@ message ServerEnvelope {
   string trace_id = 1;
   oneof payload {
     Echo echo = 10;
+    AckResp ack_resp = 11;
+    ListGroupsResp list_groups_resp = 15;
+    ListGroupMemberResp list_group_memeber_resp = 16;
+    DeliverSingleMessage deliver_single_message = 20;
+    DeliverGroupMessage deliver_group_message = 21;
     Error error = 99;
   }
 }
 
 message Echo {
   bytes message = 1;
+}
+
+message Register {
+  string uuid = 1;
+  string email = 2;
+  string phone = 3;
+  string name = 4;
+  string password = 5;
+}
+
+message AckResp {
+  int32 status = 1;
+  string message = 2;
+}
+
+enum LoginType {
+  UNKNOWN = 0;
+  PHONE = 1;
+  EMAIL = 2;
+}
+
+message Login {
+  LoginType type = 1;
+  string field = 2;
+  string password = 3;
+}
+
+message Logout {
+  string uuid = 1;
+}
+
+message ApplyForFriend {
+  string request_id = 1;
+  string uuid = 2;
+}
+
+message AcceptFriend {
+  string request_id = 1;
+}
+
+message RejectFriend {
+  string request_id = 1;
+}
+
+message CreateGroup {
+  string uuid = 1;
+  string name = 2;
+}
+
+message ApplyForGroup {
+  string request_id = 1;
+  string uuid = 2;
+}
+
+message AcceptGroup {
+  string request_id = 1;
+}
+
+message RejectGroup {
+  string request_id = 1;
+}
+
+message ListGroups {
+  string uuid = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message GroupInfo {
+  string uuid = 1;
+  string name = 2;
+  string owner = 3;
+}
+
+message ListGroupsResp {
+  int32 status = 1;
+  string message = 2;
+  repeated GroupInfo group_info = 3;
+}
+
+message ListGroupMember {
+  string uuid = 1;
+}
+
+message GroupMember {
+  string uuid = 1;
+  string name = 2;
+}
+
+message ListGroupMemberResp {
+  int32 status = 1;
+  repeated GroupMember group_member = 2;
+}
+
+message SingleMessage {
+  string to = 1;
+  bytes message = 2;
+}
+
+message GroupMessage {
+  string uuid = 1;
+  bytes message = 2;
+}
+
+// Delivery event: server -> client (single chat).
+message DeliverSingleMessage {
+  string from = 1;
+  bytes message = 2;
+}
+
+// Delivery event: server -> client (group chat).
+message DeliverGroupMessage {
+  string group_uuid = 1;
+  string from = 2;
+  bytes message = 3;
 }
 
 message Error {

@@ -82,6 +82,7 @@ func TestWS_Echo_OK(t *testing.T) {
 
 	req := &imv1.ClientEnvelope{
 		TraceId: "123",
+		Type:    imv1.MessageType_ECHO,
 		Payload: &imv1.ClientEnvelope_Echo{
 			Echo: &imv1.Echo{
 				Message: []byte("hello"),
@@ -119,5 +120,98 @@ func TestWS_Echo_OK(t *testing.T) {
 	}
 	if !bytes.Equal(pe.Echo.Message, []byte("hello")) {
 		t.Fatalf("should be hello, got %v", pe.Echo.Message)
+	}
+}
+
+func TestWS_SingleMessage_OK(t *testing.T) {
+	cfg := bootstrap.DefaultConfig()
+	reg := ws.NewRegistry()
+	authn := auth.NewDummyAuthenticator()
+	mux := http.NewServeMux()
+	srv := ws.NewServer(ws.ServerOptions{
+		NodeID:         cfg.NodeID,
+		Path:           cfg.WSPath,
+		ReadLimitBytes: cfg.ReadLimitBytes,
+		SendQueueSize:  cfg.SendQueueSize,
+		WriteTimeout:   cfg.WriteTimeout,
+		PingInterval:   cfg.PingInterval,
+		PongWait:       cfg.PongWait,
+		Logger:         zap.NewNop(),
+		Registry:       reg,
+		Authenticator:  authn,
+	})
+	mux.Handle(cfg.WSPath, srv)
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	u := "ws://" + strings.TrimPrefix(ts.URL, "http://") + cfg.WSPath
+
+	// receiver u2
+	h2 := make(http.Header)
+	h2.Add("Authorization", "Bearer test:u2:d1")
+	conn2, _, err := websocket.DefaultDialer.Dial(u, h2)
+	if err != nil {
+		t.Fatalf("failed to dial websocket (u2): %v", err)
+	}
+	defer conn2.Close()
+
+	// sender u1
+	h1 := make(http.Header)
+	h1.Add("Authorization", "Bearer test:u1:d1")
+	conn1, _, err := websocket.DefaultDialer.Dial(u, h1)
+	if err != nil {
+		t.Fatalf("failed to dial websocket (u1): %v", err)
+	}
+	defer conn1.Close()
+
+	req := &imv1.ClientEnvelope{
+		TraceId: "t-single-1",
+		Type:    imv1.MessageType_SINGLE_MESSAGE,
+		Payload: &imv1.ClientEnvelope_SingleMessage{
+			SingleMessage: &imv1.SingleMessage{
+				To:      "u2",
+				Message: []byte("hi u2"),
+			},
+		},
+	}
+	reqBytes, err := protocol.EncodeClientMessage(req)
+	if err != nil {
+		t.Fatalf("failed to encode client message: %v", err)
+	}
+	if err := conn1.WriteMessage(websocket.BinaryMessage, reqBytes); err != nil {
+		t.Fatalf("failed to write message: %v", err)
+	}
+
+	// sender gets ack
+	_, ackBytes, err := conn1.ReadMessage()
+	if err != nil {
+		t.Fatalf("failed to read ack: %v", err)
+	}
+	var ackEnv imv1.ServerEnvelope
+	if err := proto.Unmarshal(ackBytes, &ackEnv); err != nil {
+		t.Fatalf("failed to unmarshal ack: %v", err)
+	}
+	if _, ok := ackEnv.Payload.(*imv1.ServerEnvelope_AckResp); !ok {
+		t.Fatalf("expected ack_resp, got %T", ackEnv.Payload)
+	}
+
+	// receiver gets delivery
+	_, delBytes, err := conn2.ReadMessage()
+	if err != nil {
+		t.Fatalf("failed to read delivery: %v", err)
+	}
+	var delEnv imv1.ServerEnvelope
+	if err := proto.Unmarshal(delBytes, &delEnv); err != nil {
+		t.Fatalf("failed to unmarshal delivery: %v", err)
+	}
+	ds, ok := delEnv.Payload.(*imv1.ServerEnvelope_DeliverSingleMessage)
+	if !ok {
+		t.Fatalf("expected deliver_single_message, got %T", delEnv.Payload)
+	}
+	if ds.DeliverSingleMessage.GetFrom() != "u1" {
+		t.Fatalf("expected from=u1, got %s", ds.DeliverSingleMessage.GetFrom())
+	}
+	if !bytes.Equal(ds.DeliverSingleMessage.GetMessage(), []byte("hi u2")) {
+		t.Fatalf("unexpected message: %s", string(ds.DeliverSingleMessage.GetMessage()))
 	}
 }
